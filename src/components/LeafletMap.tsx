@@ -23,6 +23,8 @@ type Props = {
   flyTo: FlyTarget | null;
   clusters: boolean;
   iconScale: number;
+  /** several icons overlap where the user clicked: let them pick */
+  onPickMany: (ids: string[], clientX: number, clientY: number) => void;
 };
 
 const DOT_ZOOM = 3; // without clustering: canvas dots below this zoom
@@ -55,6 +57,7 @@ export default function LeafletMap(props: Props) {
       zoomControl: false,
       preferCanvas: true,
       inertiaDeceleration: 2500,
+      keyboard: false, // arrow keys are used to jump between markers instead
     });
     const toLL = (x: number, y: number) => map.unproject([x, y], POSTER.maxZoom);
     const bounds = L.latLngBounds(toLL(0, POSTER.height), toLL(POSTER.width, 0));
@@ -85,8 +88,28 @@ export default function LeafletMap(props: Props) {
         className: "mk-tip",
       });
       lyr.on("click", (e: L.LeafletEvent) => {
-        L.DomEvent.stopPropagation(e as L.LeafletMouseEvent);
-        propsRef.current.onSelect(id);
+        const ev = e as L.LeafletMouseEvent;
+        L.DomEvent.stopPropagation(ev);
+        const p = propsRef.current;
+        // icons that overlap the clicked one on screen -> offer a picker instead of guessing
+        const m0 = p.markers.find((m) => m.id === id);
+        if (m0 && map.getZoom() >= (p.clusters ? CLUSTER_UNTIL : DOT_ZOOM)) {
+          const c0 = map.latLngToContainerPoint(toLL(m0.x, m0.y));
+          const r = (baseIconSize(map.getZoom()) * p.iconScale) * 0.75;
+          const near = p.markers.filter((m) => {
+            const c = map.latLngToContainerPoint(toLL(m.x, m.y));
+            return Math.abs(c.x - c0.x) < r && Math.abs(c.y - c0.y) < r;
+          });
+          if (near.length > 1) {
+            p.onPickMany(
+              [id, ...near.map((m) => m.id).filter((x) => x !== id)],
+              ev.originalEvent.clientX,
+              ev.originalEvent.clientY,
+            );
+            return;
+          }
+        }
+        p.onSelect(id);
       });
       lyr.on("contextmenu", (e: L.LeafletEvent) => {
         const ev = e as L.LeafletMouseEvent;
@@ -253,8 +276,51 @@ export default function LeafletMap(props: Props) {
     });
     redraw();
 
+    // ---- arrow keys: jump to the nearest marker in that direction ---------------
+    const DIRS: Record<string, [number, number]> = {
+      ArrowUp: [0, -1],
+      ArrowDown: [0, 1],
+      ArrowLeft: [-1, 0],
+      ArrowRight: [1, 0],
+    };
+    const onKey = (e: KeyboardEvent) => {
+      const dir = DIRS[e.key];
+      if (!dir || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      e.preventDefault();
+      const { markers, selectedId, onSelect } = propsRef.current;
+      const size = map.getSize();
+      const sel = selectedId ? markers.find((m) => m.id === selectedId) : null;
+      const origin = sel ? map.latLngToContainerPoint(toLL(sel.x, sel.y)) : size.divideBy(2);
+      let best: { id: string; score: number; ll: L.LatLng } | null = null;
+      for (const m of markers) {
+        if (m.id === selectedId) continue;
+        const ll = toLL(m.x, m.y);
+        const c = map.latLngToContainerPoint(ll);
+        const vx = c.x - origin.x,
+          vy = c.y - origin.y;
+        const along = vx * dir[0] + vy * dir[1];
+        if (!sel && Math.hypot(vx, vy) < 1) {
+          best = { id: m.id, score: -1, ll };
+          break;
+        }
+        if (along <= 1) continue;
+        const perp = Math.abs(vx * dir[1] - vy * dir[0]);
+        if (perp > along * 1.6) continue; // ~60° cone
+        const score = along + perp * 2.2;
+        if (!best || score < best.score) best = { id: m.id, score, ll };
+      }
+      if (!best) return;
+      onSelect(best.id);
+      const c = map.latLngToContainerPoint(best.ll);
+      if (c.x < 60 || c.y < 60 || c.x > size.x - 60 || c.y > size.y - 60) map.panTo(best.ll, { animate: true, duration: 0.25 });
+    };
+    window.addEventListener("keydown", onKey);
+
     const rendered = renderedRef.current;
     return () => {
+      window.removeEventListener("keydown", onKey);
       disposeWheel();
       map.remove();
       mapRef.current = null;

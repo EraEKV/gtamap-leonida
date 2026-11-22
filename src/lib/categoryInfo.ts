@@ -94,6 +94,35 @@ const BY_NAME: Record<string, string> = {
   Criminals: "Нелегальная точка преступников — охрана и лут.",
 };
 
+/** Legend order: most interesting first, everyday services last. */
+export const GROUP_PRIORITY = [
+  "27134", // WAiNK Locations
+  "27138", // Collectible Cards
+  "27137", // Exploration
+  "27140", // Illegal Operations
+  "27129", // Robberies
+  "27130", // Vehicles
+  "27125", // Activities
+  "27127", // Stunts
+  "27136", // Racing
+  "27123", // Sports
+  "27128", // Points of Interest
+  "27131", // Style
+  "27132", // Food & Drink
+];
+
+/** Inside a group, put these categories first (rare/valuable before routine). */
+export const CATEGORY_PRIORITY = new Set([
+  "29095", // Standout Vehicle
+  "29096", // Randy Vehicle
+  "29097", // Moses Vehicle
+  "29083", // Safe
+  "29082", // Contact
+  "29023", // Big Bank
+  "29022", // Bank
+  "29041", // Ammu-Nation
+]);
+
 export function categoryHint(catId: string): string | null {
   const c = categoryById.get(catId);
   return c ? (BY_NAME[c.name] ?? null) : null;

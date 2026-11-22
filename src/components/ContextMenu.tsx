@@ -14,6 +14,10 @@ type Props = {
   onOpen: (id: string) => void;
   onAddHere: (x: number, y: number) => void;
   onCenter: (x: number, y: number) => void;
+  onHideMarker: (id: string) => void;
+  uiHidden: boolean;
+  onToggleUi: () => void;
+  onToggleLegend: () => void;
 };
 
 function Item({ onClick, children, danger }: { onClick: () => void; children: React.ReactNode; danger?: boolean }) {
@@ -29,7 +33,19 @@ function Item({ onClick, children, danger }: { onClick: () => void; children: Re
   );
 }
 
-export default function ContextMenu({ event, marker, api, onClose, onOpen, onAddHere, onCenter }: Props) {
+export default function ContextMenu({
+  event,
+  marker,
+  api,
+  onClose,
+  onOpen,
+  onAddHere,
+  onCenter,
+  onHideMarker,
+  uiHidden,
+  onToggleUi,
+  onToggleLegend,
+}: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [newList, setNewList] = useState("");
   const { data, actions } = api;
@@ -111,6 +127,7 @@ export default function ContextMenu({ event, marker, api, onClose, onOpen, onAdd
           <div className="my-1 h-px bg-white/10" />
           <Item onClick={act(() => copyText(marker.name))}>⧉ Скопировать название</Item>
           {!marker.custom && <Item onClick={act(() => findOnIgn(marker.name))}>↗ Найти на IGN (фото, описание)</Item>}
+          <Item onClick={act(() => onHideMarker(marker.id))}>🙈 Скрыть эту точку</Item>
           {marker.custom && (
             <Item danger onClick={act(() => actions.deleteCustom(marker.id))}>
               🗑 Удалить точку
@@ -128,6 +145,15 @@ export default function ContextMenu({ event, marker, api, onClose, onOpen, onAdd
           <Item onClick={act(() => copyText(`${event.x}, ${event.y}`))}>⧉ Скопировать координаты</Item>
         </>
       ) : null}
+      <div className="my-1 h-px bg-white/10" />
+      <Item onClick={act(onToggleLegend)}>
+        <span className="flex-1">🗺 Легенда иконок</span>
+        <kbd className="text-[10px] text-slate-500">L</kbd>
+      </Item>
+      <Item onClick={act(onToggleUi)}>
+        <span className="flex-1">{uiHidden ? "👁 Показать интерфейс" : "🙈 Скрыть интерфейс"}</span>
+        <kbd className="text-[10px] text-slate-500">H</kbd>
+      </Item>
     </div>
   );
 }

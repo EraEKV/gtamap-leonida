@@ -263,7 +263,8 @@ export default function Sidebar(p: Props) {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Поиск точек…"
+            placeholder="Поиск точек…  ( / )"
+            data-search
             className="mt-3 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none focus:border-pink-400"
           />
         </div>
