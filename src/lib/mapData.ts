@@ -4,6 +4,17 @@ import iconData from "@/data/icons.json";
 
 export const POSTER = { width: 5775, height: 7900, maxZoom: 5, tileSize: 256 } as const;
 
+/**
+ * Where tiles and icons are served from. In production they come from jsDelivr (free CDN that
+ * mirrors the public GitHub repo), so the Vercel deployment only serves the page itself.
+ * The URL is pinned to a commit, which jsDelivr caches permanently — bump it after regenerating
+ * tiles/icons (npm run tiles / npm run data) and pushing. Override with NEXT_PUBLIC_ASSET_BASE.
+ */
+const ASSETS_COMMIT = "6c97ece";
+export const ASSET_BASE =
+  process.env.NEXT_PUBLIC_ASSET_BASE ??
+  (process.env.NODE_ENV === "production" ? `https://cdn.jsdelivr.net/gh/EraEKV/gtamap@${ASSETS_COMMIT}/public` : "");
+
 export type Section = { id: string; name: string };
 export type Group = { id: string; name: string; section: string };
 export type Category = { id: string; name: string; group: string; icon: string };
@@ -59,7 +70,7 @@ export function iconStyle(key: string, size: number): CSSProperties {
   return {
     width: size,
     height: size,
-    backgroundImage: "url(/icons/atlas@2x.png)",
+    backgroundImage: `url(${ASSET_BASE}/icons/atlas@2x.png)`,
     backgroundSize: `${(SHEET[0] / RATIO) * k}px ${(SHEET[1] / RATIO) * k}px`,
     backgroundPosition: `-${(x / RATIO) * k}px -${(y / RATIO) * k}px`,
   };

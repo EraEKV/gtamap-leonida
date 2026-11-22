@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { CUSTOM_COLOR, POSTER, categoryById, groupColor, iconCss, type Marker } from "@/lib/mapData";
+import { ASSET_BASE, CUSTOM_COLOR, POSTER, categoryById, groupColor, iconCss, type Marker } from "@/lib/mapData";
 
 export type FlyTarget = { x: number; y: number; zoom?: number; key: number };
 
@@ -48,7 +48,7 @@ export default function LeafletMap({ markers, done, selectedId, onSelect, addMod
     });
     const toLL = (x: number, y: number) => map.unproject([x, y], POSTER.maxZoom);
     const bounds = L.latLngBounds(toLL(0, POSTER.height), toLL(POSTER.width, 0));
-    L.tileLayer("/tiles/{z}/{x}/{y}.webp", {
+    L.tileLayer(`${ASSET_BASE}/tiles/{z}/{x}/{y}.webp`, {
       tileSize: POSTER.tileSize,
       minZoom: 0,
       maxNativeZoom: POSTER.maxZoom,

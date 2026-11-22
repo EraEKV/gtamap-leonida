@@ -1,0 +1,5 @@
+# Tiles and icons are served from jsDelivr in production (see ASSET_BASE in src/lib/mapData.ts),
+# so they are not uploaded to Vercel at all.
+public/tiles
+public/icons
+data/raw
