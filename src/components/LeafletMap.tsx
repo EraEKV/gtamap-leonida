@@ -228,25 +228,17 @@ export default function LeafletMap(props: Props) {
             const g = m.custom ? "custom" : (categoryById.get(m.cat)?.group ?? "");
             counts.set(g, (counts.get(g) ?? 0) + 1);
           }
-          // ring = pie of what's inside (each group its own colour), centre tinted by the dominant group
+          // solid circle coloured by size only (like State of Leonida): small / medium / large / huge
           const parts = [...counts.entries()].sort((a, b) => b[1] - a[1]);
           const colorOf = (g: string) => (g === "custom" ? CUSTOM_COLOR : groupColor(g));
-          let acc = 0;
-          const stops = parts
-            .map(([g, n]) => {
-              const from = (acc / ms.length) * 360;
-              acc += n;
-              const to = (acc / ms.length) * 360;
-              return `${colorOf(g)} ${from.toFixed(1)}deg ${to.toFixed(1)}deg`;
-            })
-            .join(",");
-          const main = colorOf(parts[0][0]);
-          const d = ms.length < 10 ? 30 : ms.length < 50 ? 36 : ms.length < 150 ? 42 : 48;
-          put(`cl:${zKey}:${cell}`, `${ms.length}|${left}|${stops}`, () => {
+          const n = left || ms.length;
+          const tier = n < 10 ? "s" : n < 50 ? "m" : n < 100 ? "l" : "xl";
+          const d = n < 10 ? 30 : n < 50 ? 36 : n < 100 ? 40 : 46;
+          put(`cl:${zKey}:${cell}`, `${ms.length}|${left}`, () => {
             const lyr = L.marker(toLL(cx, cy), {
               icon: L.divIcon({
                 className: "mk-cluster-wrap",
-                html: `<div class="mk-cluster${left === 0 ? " all-done" : ""}" style="width:${d}px;height:${d}px;--c:${main};--ring:conic-gradient(${stops})"><span>${left === 0 ? "✓" : left}</span></div>`,
+                html: `<div class="mk-cluster mk-cl-${left === 0 ? "done" : tier}" style="width:${d}px;height:${d}px">${left === 0 ? "✓" : left}</div>`,
                 iconSize: [d, d],
                 iconAnchor: [d / 2, d / 2],
               }),
