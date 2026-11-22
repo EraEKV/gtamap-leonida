@@ -3,10 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   GoogleAuthProvider,
+  createUserWithEmailAndPassword,
   onAuthStateChanged,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
   signInWithPopup,
   signInWithRedirect,
   signOut as fbSignOut,
+  updateProfile,
   type User,
 } from "firebase/auth";
 import { deleteField, doc, onSnapshot, setDoc } from "firebase/firestore";
@@ -19,9 +23,29 @@ export type UserData = {
   notes: Record<string, string>;
   lists: Record<string, UserList>;
   custom: Record<string, CustomMarker>;
+  /** marker id -> image URLs the user attached */
+  photos: Record<string, Record<string, string>>;
 };
 
-const EMPTY: UserData = { done: {}, notes: {}, lists: {}, custom: {} };
+const EMPTY: UserData = { done: {}, notes: {}, lists: {}, custom: {}, photos: {} };
+
+const AUTH_ERRORS: Record<string, string> = {
+  "auth/invalid-email": "Некорректный email",
+  "auth/missing-password": "Введи пароль",
+  "auth/weak-password": "Пароль слишком простой (минимум 6 символов)",
+  "auth/email-already-in-use": "Этот email уже зарегистрирован — войди",
+  "auth/invalid-credential": "Неверный email или пароль",
+  "auth/user-not-found": "Аккаунт не найден",
+  "auth/wrong-password": "Неверный пароль",
+  "auth/too-many-requests": "Слишком много попыток, попробуй позже",
+  "auth/operation-not-allowed": "Этот способ входа не включён в Firebase (Authentication → Sign-in method)",
+  "auth/unauthorized-domain": "Домен сайта не добавлен в Firebase (Authentication → Settings → Authorized domains)",
+  "auth/network-request-failed": "Нет сети",
+};
+export const authErrorText = (e: unknown) => {
+  const code = (e as { code?: string })?.code ?? "";
+  return AUTH_ERRORS[code] ?? (code ? `Ошибка: ${code}` : String(e));
+};
 const LOCAL_KEY = "leonida:userdata:v1";
 const DEL = Symbol("delete");
 type Op = { path: string[]; value: unknown | typeof DEL };
@@ -162,26 +186,30 @@ export function useUserData() {
     },
     updateCustom: (id: string, patch: Partial<Omit<CustomMarker, "createdAt">>) =>
       commit(Object.entries(patch).map(([k, v]) => ({ path: ["custom", id, k], value: v }))),
+    addPhoto: (markerId: string, url: string) => commit([{ path: ["photos", markerId, uid("p_")], value: url }]),
+    removePhoto: (markerId: string, photoId: string) => commit([{ path: ["photos", markerId, photoId], value: DEL }]),
     deleteCustom: (id: string) => {
       const d = dataRef.current;
       const ops: Op[] = [
         { path: ["custom", id], value: DEL },
         { path: ["done", id], value: DEL },
         { path: ["notes", id], value: DEL },
+        { path: ["photos", id], value: DEL },
       ];
       for (const [lid, l] of Object.entries(d.lists)) if (l.items?.[id]) ops.push({ path: ["lists", lid, "items", id], value: DEL });
       commit(ops);
     },
     importData: (incoming: Partial<UserData>) => {
       const ops: Op[] = [];
-      for (const key of ["done", "notes", "lists", "custom"] as const) {
+      for (const key of ["done", "notes", "lists", "custom", "photos"] as const) {
         for (const [k, v] of Object.entries(incoming[key] ?? {})) ops.push({ path: [key, k], value: v });
       }
       commit(ops);
     },
   };
 
-  const signIn = async () => {
+  /** Google sign-in. Throws a readable message on failure (null when the user just closed the popup). */
+  const signInGoogle = async () => {
     const fb = getFirebase();
     if (!fb) return;
     const provider = new GoogleAuthProvider();
@@ -192,8 +220,36 @@ export function useUserData() {
       if (code === "auth/popup-blocked" || code === "auth/operation-not-supported-in-this-environment") {
         await signInWithRedirect(fb.auth, provider);
       } else if (code !== "auth/popup-closed-by-user" && code !== "auth/cancelled-popup-request") {
-        setSyncError(String(e));
+        throw new Error(authErrorText(e));
       }
+    }
+  };
+  const signInEmail = async (email: string, password: string) => {
+    const fb = getFirebase();
+    if (!fb) return;
+    try {
+      await signInWithEmailAndPassword(fb.auth, email.trim(), password);
+    } catch (e) {
+      throw new Error(authErrorText(e));
+    }
+  };
+  const signUpEmail = async (email: string, password: string, name: string) => {
+    const fb = getFirebase();
+    if (!fb) return;
+    try {
+      const cred = await createUserWithEmailAndPassword(fb.auth, email.trim(), password);
+      if (name.trim()) await updateProfile(cred.user, { displayName: name.trim() });
+    } catch (e) {
+      throw new Error(authErrorText(e));
+    }
+  };
+  const resetPassword = async (email: string) => {
+    const fb = getFirebase();
+    if (!fb) return;
+    try {
+      await sendPasswordResetEmail(fb.auth, email.trim());
+    } catch (e) {
+      throw new Error(authErrorText(e));
     }
   };
   const signOut = async () => {
@@ -201,7 +257,18 @@ export function useUserData() {
     if (fb) await fbSignOut(fb.auth);
   };
 
-  return { data, auth, actions, signIn, signOut, syncError, clearSyncError: () => setSyncError(null) };
+  return {
+    data,
+    auth,
+    actions,
+    signInGoogle,
+    signInEmail,
+    signUpEmail,
+    resetPassword,
+    signOut,
+    syncError,
+    clearSyncError: () => setSyncError(null),
+  };
 }
 
 export type UserDataApi = ReturnType<typeof useUserData>;

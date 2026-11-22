@@ -27,6 +27,95 @@ body {
   border-color: #ffffff1a !important;
 }
 
+/* ---- hover tooltips ---- */
+.leaflet-tooltip.mk-tip {
+  background: rgb(18 21 42 / 0.96);
+  color: #f1f5f9;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.45);
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.35;
+  white-space: normal;
+  max-width: 260px;
+  min-width: 140px;
+  backdrop-filter: blur(6px);
+}
+.leaflet-tooltip.mk-tip::before {
+  border-top-color: rgb(18 21 42 / 0.96);
+}
+.mk-tip-title {
+  font-weight: 700;
+  font-size: 13px;
+}
+.mk-tip-done {
+  color: #34d399;
+}
+.mk-tip-sub {
+  color: #94a3b8;
+  font-size: 11px;
+  margin-top: 1px;
+}
+.mk-tip-hint {
+  margin-top: 6px;
+  color: #cbd5e1;
+}
+.mk-tip-note {
+  margin-top: 6px;
+  color: #e2e8f0;
+  font-style: italic;
+}
+.mk-tip-lists {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.mk-tip-lists span {
+  border-radius: 9999px;
+  padding: 1px 7px;
+  font-size: 10px;
+  color: white;
+}
+.mk-tip-foot {
+  margin-top: 6px;
+  padding-top: 5px;
+  border-top: 1px solid rgb(255 255 255 / 0.08);
+  color: #64748b;
+  font-size: 10px;
+}
+@media (hover: none) {
+  .leaflet-tooltip.mk-tip {
+    display: none; /* touch devices: tap opens the card instead */
+  }
+}
+
+/* ---- clusters ---- */
+.mk-cluster-wrap {
+  background: none;
+  border: none;
+}
+.mk-cluster {
+  display: grid;
+  place-items: center;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--c) 85%, #0d0f1a);
+  color: white;
+  font-weight: 700;
+  font-size: 13px;
+  border: 2.5px solid white;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 35%, transparent), 0 3px 10px rgb(0 0 0 / 0.4);
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.mk-cluster:hover {
+  transform: scale(1.1);
+}
+.mk-cluster.all-done {
+  background: #10b981;
+}
+
 /* ---- markers ---- */
 .mk {
   position: relative;

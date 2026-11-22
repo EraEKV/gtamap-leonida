@@ -5,12 +5,14 @@ import {
   CUSTOM_CAT,
   categoriesByGroup,
   categoryById,
+  gridRef,
   groupColor,
   groups,
   iconStyle,
   sections,
   type Marker,
 } from "@/lib/mapData";
+import { categoryHint } from "@/lib/categoryInfo";
 import type { UserDataApi } from "@/lib/useUserData";
 
 type Props = {
@@ -25,7 +27,9 @@ type Props = {
   setListFilter: (id: string | null) => void;
   onFocus: (id: string) => void;
   open: boolean;
+  desktopVisible: boolean;
   onClose: () => void;
+  onOpenAuth: () => void;
 };
 
 function Bar({ done, total, color = "#f472b6" }: { done: number; total: number; color?: string }) {
@@ -37,11 +41,95 @@ function Bar({ done, total, color = "#f472b6" }: { done: number; total: number; 
   );
 }
 
+function EyeIcon({ off }: { off: boolean }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+      <circle cx="12" cy="12" r="3" />
+      {off && <path d="M3 3l18 18" />}
+    </svg>
+  );
+}
+
+/** Legend drill-in: all points of one category with "go to" and quick done toggles. */
+function CategoryView(p: {
+  catId: string;
+  markers: Marker[];
+  done: Record<string, true>;
+  hidden: boolean;
+  onToggleHidden: () => void;
+  onBack: () => void;
+  onFocus: (id: string) => void;
+  onToggleDone: (id: string) => void;
+  onAllDone: (ids: string[], on: boolean) => void;
+}) {
+  const cat = categoryById.get(p.catId);
+  const hint = categoryHint(p.catId);
+  const d = p.markers.filter((m) => p.done[m.id]).length;
+  const sorted = [...p.markers].sort((a, b) => Number(!!p.done[a.id]) - Number(!!p.done[b.id]) || a.name.localeCompare(b.name));
+  return (
+    <div className="p-3">
+      <button onClick={p.onBack} className="mb-3 text-xs text-slate-400 hover:text-white">
+        ← Все категории
+      </button>
+      <div className="flex items-center gap-3">
+        {cat && <span className="shrink-0" style={iconStyle(cat.icon, 36)} />}
+        <div className="min-w-0 flex-1">
+          <div className="font-bold">{cat?.name ?? "Мои точки"}</div>
+          <div className="text-xs text-slate-400">
+            {d} / {p.markers.length} выполнено
+          </div>
+        </div>
+        <button onClick={p.onToggleHidden} className={`rounded-md p-1.5 hover:bg-white/10 ${p.hidden ? "text-slate-600" : "text-slate-300"}`} title="Показать/скрыть на карте">
+          <EyeIcon off={p.hidden} />
+        </button>
+      </div>
+      {hint && <p className="mt-2 rounded-lg bg-white/5 p-2 text-xs leading-relaxed text-slate-300">{hint}</p>}
+      <div className="mt-2">
+        <Bar done={d} total={p.markers.length} color={cat ? groupColor(cat.group) : undefined} />
+      </div>
+      <ul className="mt-3 space-y-0.5">
+        {sorted.map((m) => {
+          const isDone = !!p.done[m.id];
+          return (
+            <li key={m.id} className="flex items-center gap-1 rounded-lg hover:bg-white/5">
+              <button
+                onClick={() => p.onToggleDone(m.id)}
+                className={`grid h-6 w-6 shrink-0 place-items-center rounded-md border text-xs ${
+                  isDone ? "border-emerald-500 bg-emerald-500 text-white" : "border-white/20 text-transparent hover:border-white/50"
+                }`}
+                title={isDone ? "Снять отметку" : "Отметить выполненным"}
+              >
+                ✓
+              </button>
+              <button onClick={() => p.onFocus(m.id)} className="flex min-w-0 flex-1 items-center justify-between gap-2 px-1.5 py-1.5 text-left text-[13px]">
+                <span className={`truncate ${isDone ? "text-slate-500 line-through" : ""}`}>{m.name}</span>
+                <span className="shrink-0 text-[11px] text-slate-500">{gridRef(m.x, m.y) ?? ""} ↗</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {p.markers.length > 1 && (
+        <div className="mt-3 flex gap-2 text-xs">
+          <button
+            onClick={() => p.onAllDone(p.markers.map((m) => m.id), d < p.markers.length)}
+            className="flex-1 rounded-lg bg-white/5 py-2 hover:bg-white/10"
+          >
+            {d < p.markers.length ? "Отметить все" : "Снять все отметки"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Sidebar(p: Props) {
-  const { data, auth, actions, signIn, signOut, syncError, clearSyncError } = p.api;
+  const { data, auth, actions, signOut, syncError, clearSyncError } = p.api;
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [newList, setNewList] = useState("");
+  const [openCat, setOpenCat] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // per-category totals (base + custom points that have a category)
@@ -117,7 +205,7 @@ export default function Sidebar(p: Props) {
       <aside
         className={`fixed inset-y-0 left-0 z-[1000] flex w-[86vw] max-w-[360px] flex-col border-r border-white/5 bg-[#12152a] transition-transform md:static md:w-[340px] md:translate-x-0 ${
           p.open ? "translate-x-0" : "-translate-x-full"
-        }`}
+        } ${p.desktopVisible ? "" : "md:hidden"}`}
       >
         {/* header */}
         <div className="border-b border-white/5 p-4">
@@ -127,23 +215,33 @@ export default function Sidebar(p: Props) {
               <h1 className="text-lg font-bold leading-tight">Leonida Map</h1>
             </div>
             {auth.status === "signed-in" && auth.user ? (
-              <button onClick={signOut} className="flex items-center gap-2 rounded-lg bg-white/5 px-2 py-1 text-xs" title="Выйти">
-                {auth.user.photoURL && (
+              <div className="flex min-w-0 items-center gap-2">
+                {auth.user.photoURL ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={auth.user.photoURL} alt="" className="h-6 w-6 rounded-full" referrerPolicy="no-referrer" />
+                  <img src={auth.user.photoURL} alt="" className="h-7 w-7 shrink-0 rounded-full" referrerPolicy="no-referrer" />
+                ) : (
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-pink-500 text-xs font-bold">
+                    {(auth.user.displayName || auth.user.email || "?").slice(0, 1).toUpperCase()}
+                  </span>
                 )}
-                Выйти
+                <div className="min-w-0 text-right">
+                  <div className="max-w-[120px] truncate text-xs">{auth.user.displayName || auth.user.email}</div>
+                  <button onClick={signOut} className="text-[11px] text-slate-400 hover:text-white">
+                    Выйти
+                  </button>
+                </div>
+              </div>
+            ) : auth.status === "loading" ? null : (
+              <button onClick={p.onOpenAuth} className="rounded-lg bg-pink-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-pink-400">
+                Войти / Регистрация
               </button>
-            ) : auth.status === "signed-out" ? (
-              <button onClick={signIn} className="rounded-lg bg-pink-500 px-3 py-1.5 text-xs font-semibold text-white">
-                Войти через Google
-              </button>
-            ) : auth.status === "local" ? (
-              <span className="rounded-lg bg-white/5 px-2 py-1 text-[11px] text-slate-400" title="Firebase не настроен — прогресс хранится в этом браузере">
-                Локально
-              </span>
-            ) : null}
+            )}
           </div>
+          {auth.status !== "signed-in" && auth.status !== "loading" && (
+            <p className="mt-2 text-[11px] text-slate-500">
+              {auth.status === "local" ? "Аккаунты не подключены — " : "Без входа "}прогресс хранится только в этом браузере.
+            </p>
+          )}
           {syncError && (
             <div className="mt-2 rounded bg-red-500/20 p-2 text-xs text-red-200" onClick={clearSyncError}>
               Ошибка синхронизации: {syncError}
@@ -167,7 +265,19 @@ export default function Sidebar(p: Props) {
         </div>
 
         <div className="flex-1 overflow-y-auto overscroll-contain">
-          {results.length > 0 ? (
+          {openCat && results.length === 0 ? (
+            <CategoryView
+              catId={openCat}
+              markers={p.allMarkers.filter((m) => m.cat === openCat)}
+              done={data.done}
+              hidden={p.hidden.has(openCat)}
+              onToggleHidden={() => toggleCat(openCat)}
+              onBack={() => setOpenCat(null)}
+              onFocus={p.onFocus}
+              onToggleDone={(id) => actions.toggleDone(id)}
+              onAllDone={(ids, on) => actions.setManyDone(ids, on)}
+            />
+          ) : results.length > 0 ? (
             <ul className="p-2">
               {results.map((m) => (
                 <li key={m.id}>
@@ -315,10 +425,11 @@ export default function Sidebar(p: Props) {
                                 const ct = stats.total.get(c.id) ?? 0;
                                 const off = p.hidden.has(c.id);
                                 return (
-                                  <li key={c.id}>
+                                  <li key={c.id} className="flex items-center gap-1">
                                     <button
-                                      onClick={() => toggleCat(c.id)}
-                                      className={`flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left hover:bg-white/5 ${off ? "opacity-35" : ""}`}
+                                      onClick={() => setOpenCat(c.id)}
+                                      title={categoryHint(c.id) ?? "Открыть список точек"}
+                                      className={`flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1.5 py-1 text-left hover:bg-white/5 ${off ? "opacity-35" : ""}`}
                                     >
                                       <span className="shrink-0" style={iconStyle(c.icon, 22)} />
                                       <span className="min-w-0 flex-1">
@@ -332,6 +443,13 @@ export default function Sidebar(p: Props) {
                                           <Bar done={cd} total={ct} color={groupColor(g.id)} />
                                         </span>
                                       </span>
+                                    </button>
+                                    <button
+                                      onClick={() => toggleCat(c.id)}
+                                      title={off ? "Показать на карте" : "Скрыть с карты"}
+                                      className={`grid h-7 w-7 shrink-0 place-items-center rounded-md text-sm hover:bg-white/10 ${off ? "text-slate-600" : "text-slate-300"}`}
+                                    >
+                                      <EyeIcon off={off} />
                                     </button>
                                   </li>
                                 );

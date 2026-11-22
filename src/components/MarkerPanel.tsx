@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { categories, categoryById, groupById, gridRef, iconStyle, type Marker } from "@/lib/mapData";
+import { categoryHint } from "@/lib/categoryInfo";
+import { findOnIgn } from "@/lib/ign";
 import type { UserDataApi } from "@/lib/useUserData";
 
 type Props = { marker: Marker; api: UserDataApi; onClose: () => void };
@@ -16,6 +18,10 @@ export default function MarkerPanel({ marker: m, api, onClose }: Props) {
   const [newList, setNewList] = useState("");
   const lists = Object.entries(data.lists).sort((a, b) => a[1].createdAt - b[1].createdAt);
   const grid = gridRef(m.x, m.y);
+  const hint = categoryHint(m.cat);
+  const photos = Object.entries(data.photos?.[m.id] ?? {});
+  const [photoUrl, setPhotoUrl] = useState("");
+  const [preview, setPreview] = useState<string | null>(null);
 
   return (
     <div
@@ -50,6 +56,8 @@ export default function MarkerPanel({ marker: m, api, onClose }: Props) {
           ×
         </button>
       </div>
+
+      {hint && <p className="mt-3 rounded-lg bg-white/5 p-2 text-xs leading-relaxed text-slate-300">{hint}</p>}
 
       <button
         onClick={() => actions.toggleDone(m.id)}
@@ -127,6 +135,62 @@ export default function MarkerPanel({ marker: m, api, onClose }: Props) {
           className="w-full resize-y rounded-lg border border-white/10 bg-black/30 px-2 py-1.5 text-sm outline-none focus:border-pink-400"
         />
       </div>
+
+      <div className="mt-4">
+        <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">Фото</div>
+        {photos.length > 0 && (
+          <div className="mb-2 grid grid-cols-3 gap-1.5">
+            {photos.map(([pid, url]) => (
+              <div key={pid} className="group relative aspect-video overflow-hidden rounded-md bg-black/40">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt="" className="h-full w-full cursor-zoom-in object-cover" onClick={() => setPreview(url)} referrerPolicy="no-referrer" />
+                <button
+                  onClick={() => actions.removePhoto(m.id, pid)}
+                  className="absolute right-0.5 top-0.5 hidden rounded bg-black/70 px-1 text-[10px] text-white group-hover:block"
+                  title="Убрать фото"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <form
+          className="flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const url = photoUrl.trim();
+            if (/^https?:\/\/\S+$/i.test(url)) {
+              actions.addPhoto(m.id, url);
+              setPhotoUrl("");
+            }
+          }}
+        >
+          <input
+            value={photoUrl}
+            onChange={(e) => setPhotoUrl(e.target.value)}
+            placeholder="Ссылка на картинку (https://…)"
+            className="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/30 px-2 py-1.5 text-xs outline-none focus:border-pink-400"
+          />
+          <button className="rounded-lg bg-white/10 px-3 text-xs">＋</button>
+        </form>
+        {!m.custom && (
+          <button
+            onClick={() => findOnIgn(m.name)}
+            className="mt-2 w-full rounded-lg bg-white/5 py-2 text-xs text-slate-300 hover:bg-white/10"
+            title="Название скопируется — вставь его в поиск на карте IGN"
+          >
+            ↗ Найти на IGN — фото и описание (название скопируется)
+          </button>
+        )}
+      </div>
+
+      {preview && (
+        <div className="fixed inset-0 z-[3000] grid place-items-center bg-black/85 p-4" onClick={() => setPreview(null)}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={preview} alt="" className="max-h-full max-w-full rounded-lg" referrerPolicy="no-referrer" />
+        </div>
+      )}
 
       {m.custom && (
         <button
