@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+}
+
+html,
+body {
+  background: #0d0f1a;
+  color: #f1f5f9;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  overscroll-behavior: none;
+}
+
+/* ---- Leaflet tweaks ---- */
+.leaflet-container {
+  background: #0d0f1a !important;
+  font-family: inherit;
+}
+.leaflet-container.adding,
+.adding .leaflet-interactive {
+  cursor: crosshair !important;
+}
+.leaflet-control-zoom a {
+  background: #161a2b !important;
+  color: #f1f5f9 !important;
+  border-color: #ffffff1a !important;
+}
+
+/* ---- markers ---- */
+.mk {
+  position: relative;
+  background: none;
+  border: none;
+  transition: transform 0.12s ease;
+}
+.mk:hover {
+  transform: scale(1.15);
+  z-index: 10000 !important;
+}
+.mk-img,
+.mk-custom {
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.6));
+}
+.mk-custom {
+  display: grid;
+  place-items: center;
+  border-radius: 9999px;
+  background: #ff4fa3;
+  color: white;
+  font-size: 14px;
+  border: 2px solid white;
+}
+.mk-done .mk-img,
+.mk-done .mk-custom {
+  opacity: 0.35;
+  filter: grayscale(0.8);
+}
+.mk-check {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 15px;
+  height: 15px;
+  border-radius: 9999px;
+  background: #10b981;
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+  border: 1.5px solid #0d0f1a;
+}
+.mk-sel {
+  transform: scale(1.35);
+}
+.mk-sel::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: 9999px;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 3px #ec4899;
+}
