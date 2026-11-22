@@ -49,7 +49,14 @@ export default function TrophiesView({ api, stats, onShowCats }: Props) {
   const { data, actions } = api;
   const earned = data.trophies ?? {};
   const revealed = data.revealed ?? {};
-  const [filter, setFilter] = useState<Filter>("all");
+  const [filter, setFilterState] = useState<Filter>("all");
+  // ids that were not earned when "Не получены" was chosen: keep them listed (with a check) after marking,
+  // so a freshly earned trophy doesn't vanish from under the cursor
+  const [todoSnapshot, setTodoSnapshot] = useState<Set<string>>(new Set());
+  const setFilter = (f: Filter) => {
+    if (f === "todo") setTodoSnapshot(new Set(TROPHIES.filter((t) => !earned[t.id]).map((t) => t.id)));
+    setFilterState(f);
+  };
   const [confirm, setConfirm] = useState<{ t: Trophy; intent: "view" | "earn" } | null>(null);
 
   const total = TROPHIES.length;
@@ -57,7 +64,7 @@ export default function TrophiesView({ api, stats, onShowCats }: Props) {
   const platinum = TROPHIES.find((t) => t.tier === "platinum")!;
 
   const visible = TROPHIES.filter((t) => {
-    if (filter === "todo") return !earned[t.id];
+    if (filter === "todo") return todoSnapshot.has(t.id);
     if (filter === "map") return !!t.map;
     return true;
   });

@@ -46,6 +46,17 @@ const AUTH_ERRORS: Record<string, string> = {
   "auth/unauthorized-domain": "Домен сайта не добавлен в Firebase (Authentication → Settings → Authorized domains)",
   "auth/network-request-failed": "Нет сети",
 };
+/** Readable Firestore errors (the usual culprit is security rules / missing database). */
+export const firestoreErrorText = (e: unknown) => {
+  const code = (e as { code?: string })?.code ?? "";
+  if (code === "permission-denied")
+    return "Firestore отклонил запись: в Firebase Console → Firestore → Rules вставь правила из firestore.rules и нажми Publish. Отметки не сохраняются в аккаунт, пока это не исправлено.";
+  if (code === "not-found" || code === "failed-precondition")
+    return "База Firestore не создана: Firebase Console → Firestore Database → Create database.";
+  if (code === "unavailable") return "Нет связи с Firestore — изменения сохранятся, когда появится сеть.";
+  return code ? `Firestore: ${code}` : String(e);
+};
+
 export const authErrorText = (e: unknown) => {
   const code = (e as { code?: string })?.code ?? "";
   return AUTH_ERRORS[code] ?? (code ? `Ошибка: ${code}` : String(e));
@@ -134,13 +145,13 @@ export function useUserData() {
           await setDoc(ref, local, { merge: true });
           localStorage.removeItem(LOCAL_KEY);
         } catch (e) {
-          setSyncError(String(e));
+          setSyncError(firestoreErrorText(e));
         }
       }
       unsubDoc = onSnapshot(
         ref,
         (snap) => replaceData({ ...EMPTY, ...(snap.data() as Partial<UserData> | undefined) }),
-        (err) => setSyncError(err.message),
+        (err) => setSyncError(firestoreErrorText(err)),
       );
     });
     return () => {
@@ -155,7 +166,7 @@ export function useUserData() {
     const fb = getFirebase();
     const user = userRef.current;
     if (fb && user) {
-      setDoc(doc(fb.db, "users", user.uid), opsToMerge(ops), { merge: true }).catch((e) => setSyncError(String(e)));
+      setDoc(doc(fb.db, "users", user.uid), opsToMerge(ops), { merge: true }).catch((e) => setSyncError(firestoreErrorText(e)));
     } else {
       localStorage.setItem(LOCAL_KEY, JSON.stringify(next));
     }
