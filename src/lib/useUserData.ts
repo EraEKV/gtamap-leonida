@@ -57,6 +57,25 @@ export const firestoreErrorText = (e: unknown) => {
   return code ? `Firestore: ${code}` : String(e);
 };
 
+/** REST probe for the user's doc: tells "database not created" apart from everything else. */
+async function probeDatabase(user: User): Promise<string | null> {
+  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+  if (!projectId) return null;
+  const res = await fetch(
+    `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/users/${user.uid}`,
+    { headers: { Authorization: `Bearer ${await user.getIdToken()}` } },
+  );
+  if (res.ok) return null;
+  const body = await res.text();
+  if (/database \(default\) does not exist/i.test(body))
+    return "База Firestore не создана — сохранение в аккаунт не работает. Firebase Console → Build → Firestore Database → Create database, затем вставь правила из firestore.rules и нажми Publish.";
+  if (res.status === 403)
+    return "Firestore отклоняет доступ: Firebase Console → Firestore → Rules → вставь правила из firestore.rules и нажми Publish.";
+  return null; // 404 = doc simply doesn't exist yet, fine
+}
+
+export type CloudState = "off" | "checking" | "synced" | "pending";
+
 export const authErrorText = (e: unknown) => {
   const code = (e as { code?: string })?.code ?? "";
   return AUTH_ERRORS[code] ?? (code ? `Ошибка: ${code}` : String(e));
@@ -115,6 +134,13 @@ export function useUserData() {
   const [data, setData] = useState<UserData>(readLocal);
   const [auth, setAuth] = useState<AuthState>({ status: firebaseEnabled ? "loading" : "local", user: null });
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [cloud, setCloud] = useState<CloudState>("off");
+  const [stuck, setStuck] = useState(false);
+  // flag sync that hasn't completed for 15s (timer callback, not a synchronous effect update)
+  useEffect(() => {
+    const t = setTimeout(() => setStuck(cloud === "pending" || cloud === "checking"), cloud === "synced" || cloud === "off" ? 0 : 15000);
+    return () => clearTimeout(t);
+  }, [cloud]);
   const dataRef = useRef(data);
   const userRef = useRef<User | null>(null);
   const replaceData = useCallback((d: UserData) => {
@@ -132,27 +158,40 @@ export function useUserData() {
       unsubDoc = null;
       userRef.current = user;
       if (!user) {
+        setCloud("off");
         setAuth({ status: "signed-out", user: null });
         replaceData(readLocal());
         return;
       }
       setAuth({ status: "signed-in", user });
+      setCloud("checking");
       const ref = doc(fb.db, "users", user.uid);
-      // first sign-in on this device: push whatever was saved locally into the account
-      const local = readLocal();
-      if (!isEmpty(local)) {
-        try {
-          await setDoc(ref, local, { merge: true });
-          localStorage.removeItem(LOCAL_KEY);
-        } catch (e) {
-          setSyncError(firestoreErrorText(e));
-        }
-      }
+
+      // subscribe first (never block on a write — if the backend is unreachable a write never resolves)
       unsubDoc = onSnapshot(
         ref,
-        (snap) => replaceData({ ...EMPTY, ...(snap.data() as Partial<UserData> | undefined) }),
+        { includeMetadataChanges: true },
+        (snap) => {
+          replaceData({ ...EMPTY, ...(snap.data() as Partial<UserData> | undefined) });
+          setCloud(!snap.metadata.fromCache && !snap.metadata.hasPendingWrites ? "synced" : "pending");
+        },
         (err) => setSyncError(firestoreErrorText(err)),
       );
+
+      // first sign-in on this device: push whatever was saved locally into the account.
+      // Only non-empty sections — with merge:true an empty map would REPLACE the account's map.
+      const local = readLocal();
+      if (!isEmpty(local)) {
+        const payload = Object.fromEntries(Object.entries(local).filter(([, v]) => v && Object.keys(v).length));
+        setDoc(ref, payload, { merge: true })
+          .then(() => localStorage.removeItem(LOCAL_KEY))
+          .catch((e) => setSyncError(firestoreErrorText(e)));
+      }
+
+      // the Firestore SDK silently queues writes forever when the database doesn't exist — detect it
+      probeDatabase(user)
+        .then((problem) => problem && setSyncError(problem))
+        .catch(() => {});
     });
     return () => {
       unsubAuth();
@@ -292,6 +331,8 @@ export function useUserData() {
     signOut,
     syncError,
     clearSyncError: () => setSyncError(null),
+    /** "stuck" = changes haven't reached the server for a while (offline / backend problem) */
+    cloud: (cloud === "pending" || cloud === "checking") && stuck ? ("stuck" as const) : cloud,
   };
 }
 

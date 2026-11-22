@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   ChevronRight,
   Cloud,
+  CloudOff,
   Download,
   Eye,
   EyeOff,
@@ -336,9 +337,20 @@ export default function Sidebar(p: Props) {
           ) : (
             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
               {signedIn ? (
-                <>
-                  <Cloud size={12} className="text-emerald-400" /> Сохраняется в аккаунт
-                </>
+                p.api.cloud === "synced" ? (
+                  <>
+                    <Cloud size={12} className="text-emerald-400" /> Сохранено в аккаунт
+                  </>
+                ) : p.api.cloud === "stuck" ? (
+                  <span className="text-amber-300">
+                    <CloudOff size={12} className="mr-1 inline" />
+                    Не удаётся сохранить в облако — пока только в этом браузере
+                  </span>
+                ) : (
+                  <>
+                    <Cloud size={12} className="animate-pulse" /> Синхронизация…
+                  </>
+                )
               ) : (
                 <>
                   <HardDrive size={12} /> Сохраняется только в этом браузере
