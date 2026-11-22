@@ -13,6 +13,8 @@ import {
   type Marker,
 } from "@/lib/mapData";
 import { categoryHint } from "@/lib/categoryInfo";
+import { TROPHIES, type Trophy } from "@/data/trophies";
+import TrophiesView from "./TrophiesView";
 import type { UserDataApi } from "@/lib/useUserData";
 
 type Props = {
@@ -30,6 +32,7 @@ type Props = {
   desktopVisible: boolean;
   onClose: () => void;
   onOpenAuth: () => void;
+  onShowTrophy: (t: Trophy) => void;
 };
 
 function Bar({ done, total, color = "#f472b6" }: { done: number; total: number; color?: string }) {
@@ -130,6 +133,7 @@ export default function Sidebar(p: Props) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [newList, setNewList] = useState("");
   const [openCat, setOpenCat] = useState<string | null>(null);
+  const [tab, setTab] = useState<"map" | "trophies">("map");
   const fileRef = useRef<HTMLInputElement>(null);
 
   // per-category totals (base + custom points that have a category)
@@ -264,8 +268,29 @@ export default function Sidebar(p: Props) {
           />
         </div>
 
+        <div className="flex border-b border-white/5 px-3 pt-2 text-sm">
+          {(
+            [
+              ["map", "🗺 Карта"],
+              ["trophies", `🏆 Трофеи ${TROPHIES.filter((t) => data.trophies?.[t.id]).length}/${TROPHIES.length}`],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              onClick={() => setTab(k)}
+              className={`-mb-px flex-1 border-b-2 px-2 pb-2 font-semibold transition ${
+                tab === k ? "border-pink-500 text-white" : "border-transparent text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         <div className="flex-1 overflow-y-auto overscroll-contain">
-          {openCat && results.length === 0 ? (
+          {tab === "trophies" ? (
+            <TrophiesView api={p.api} stats={stats} onShowCats={p.onShowTrophy} />
+          ) : openCat && results.length === 0 ? (
             <CategoryView
               catId={openCat}
               markers={p.allMarkers.filter((m) => m.cat === openCat)}

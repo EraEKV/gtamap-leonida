@@ -12,6 +12,18 @@ body {
   overscroll-behavior: none;
 }
 
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+}
+
 /* ---- Leaflet tweaks ---- */
 .leaflet-container {
   background: #0d0f1a !important;

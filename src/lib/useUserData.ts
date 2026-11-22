@@ -25,9 +25,13 @@ export type UserData = {
   custom: Record<string, CustomMarker>;
   /** marker id -> image URLs the user attached */
   photos: Record<string, Record<string, string>>;
+  /** earned trophies */
+  trophies: Record<string, true>;
+  /** spoiler trophies the user agreed to reveal */
+  revealed: Record<string, true>;
 };
 
-const EMPTY: UserData = { done: {}, notes: {}, lists: {}, custom: {}, photos: {} };
+const EMPTY: UserData = { done: {}, notes: {}, lists: {}, custom: {}, photos: {}, trophies: {}, revealed: {} };
 
 const AUTH_ERRORS: Record<string, string> = {
   "auth/invalid-email": "Некорректный email",
@@ -61,8 +65,7 @@ function readLocal(): UserData {
     return EMPTY;
   }
 }
-const isEmpty = (d: UserData) =>
-  !Object.keys(d.done).length && !Object.keys(d.notes).length && !Object.keys(d.lists).length && !Object.keys(d.custom).length;
+const isEmpty = (d: UserData) => Object.values(d).every((v) => !v || !Object.keys(v).length);
 
 /** Immutable apply of path ops to plain data. */
 function applyOps(data: UserData, ops: Op[]): UserData {
@@ -186,6 +189,16 @@ export function useUserData() {
     },
     updateCustom: (id: string, patch: Partial<Omit<CustomMarker, "createdAt">>) =>
       commit(Object.entries(patch).map(([k, v]) => ({ path: ["custom", id, k], value: v }))),
+    toggleTrophy: (id: string, value?: boolean) => {
+      const on = value ?? !dataRef.current.trophies?.[id];
+      commit([{ path: ["trophies", id], value: on ? true : DEL }]);
+    },
+    revealTrophy: (id: string, markEarned = false) =>
+      commit([
+        { path: ["revealed", id], value: true },
+        ...(markEarned ? [{ path: ["trophies", id], value: true as const }] : []),
+      ]),
+    hideTrophy: (id: string) => commit([{ path: ["revealed", id], value: DEL }]),
     addPhoto: (markerId: string, url: string) => commit([{ path: ["photos", markerId, uid("p_")], value: url }]),
     removePhoto: (markerId: string, photoId: string) => commit([{ path: ["photos", markerId, photoId], value: DEL }]),
     deleteCustom: (id: string) => {
@@ -201,7 +214,7 @@ export function useUserData() {
     },
     importData: (incoming: Partial<UserData>) => {
       const ops: Op[] = [];
-      for (const key of ["done", "notes", "lists", "custom", "photos"] as const) {
+      for (const key of ["done", "notes", "lists", "custom", "photos", "trophies", "revealed"] as const) {
         for (const [k, v] of Object.entries(incoming[key] ?? {})) ops.push({ path: [key, k], value: v });
       }
       commit(ops);

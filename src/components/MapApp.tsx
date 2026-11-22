@@ -45,6 +45,7 @@ export default function MapApp() {
     return { ...DEFAULT_SETTINGS, hideDone: !!p.hideDone, ...p.settings };
   });
   const [listFilter, setListFilter] = useState<string | null>(null);
+  const [trophyFilter, setTrophyFilter] = useState<{ name: string; cats: Set<string> } | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [addMode, setAddMode] = useState(false);
   const [flyTo, setFlyTo] = useState<FlyTarget | null>(null);
@@ -91,11 +92,12 @@ export default function MapApp() {
     return allMarkers.filter((m) => {
       if (m.id === selectedId) return true; // always show what's selected
       if (list) return !!list[m.id] && !(hideDone && data.done[m.id]);
+      if (trophyFilter) return trophyFilter.cats.has(m.cat) && !(hideDone && data.done[m.id]);
       if (hidden.has(m.cat) || (m.custom && hidden.has(CUSTOM_CAT))) return false;
       if (hideDone && data.done[m.id]) return false;
       return true;
     });
-  }, [allMarkers, hidden, settings.hideDone, listFilter, data.lists, data.done, selectedId]);
+  }, [allMarkers, hidden, settings.hideDone, listFilter, trophyFilter, data.lists, data.done, selectedId]);
 
   const focusMarker = useCallback(
     (id: string) => {
@@ -153,12 +155,21 @@ export default function MapApp() {
         hideDone={settings.hideDone}
         toggleHideDone={() => updateSettings({ hideDone: !settings.hideDone })}
         listFilter={listFilter}
-        setListFilter={setListFilter}
+        setListFilter={(id) => {
+          setListFilter(id);
+          if (id) setTrophyFilter(null);
+        }}
         onFocus={focusMarker}
         open={sidebarOpen}
         desktopVisible={settings.legend}
         onClose={() => setSidebarOpen(false)}
         onOpenAuth={() => setAuthOpen(true)}
+        onShowTrophy={(t) => {
+          if (!t.map) return;
+          setListFilter(null);
+          setTrophyFilter({ name: t.name, cats: new Set(t.map.cats) });
+          setSidebarOpen(false);
+        }}
       />
 
       <main className="relative min-w-0 flex-1" onContextMenu={(e) => e.preventDefault()}>
@@ -186,6 +197,14 @@ export default function MapApp() {
           >
             ☰ Легенда
           </button>
+          {trophyFilter && (
+            <button
+              className="pointer-events-auto rounded-xl bg-indigo-500 px-3 py-2 text-sm font-semibold text-white shadow-lg"
+              onClick={() => setTrophyFilter(null)}
+            >
+              🏆 {trophyFilter.name} ✕
+            </button>
+          )}
           {listFilter && data.lists[listFilter] && (
             <button
               className="pointer-events-auto rounded-xl bg-pink-500 px-3 py-2 text-sm font-semibold text-white shadow-lg"
