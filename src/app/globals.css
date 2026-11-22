@@ -151,24 +151,54 @@ body {
   background: none;
   border: none;
 }
+/* cluster: coloured pie ring (what's inside) + dark centre with the count */
 .mk-cluster {
+  position: relative;
   display: grid;
   place-items: center;
   border-radius: 9999px;
-  background: color-mix(in srgb, var(--c) 85%, #0d0f1a);
+  background: var(--ring, var(--c));
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.45), 0 0 14px color-mix(in srgb, var(--c) 45%, transparent);
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.mk-cluster span {
+  display: grid;
+  place-items: center;
+  width: calc(100% - 8px);
+  height: calc(100% - 8px);
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--c) 22%, #12152a);
   color: white;
   font-weight: 700;
   font-size: 13px;
-  border: 2.5px solid white;
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 35%, transparent), 0 3px 10px rgb(0 0 0 / 0.4);
-  cursor: pointer;
-  transition: transform 0.12s ease;
 }
 .mk-cluster:hover {
   transform: scale(1.1);
 }
 .mk-cluster.all-done {
   background: #10b981;
+}
+.mk-cluster.all-done span {
+  background: #065f46;
+}
+.mk-tip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  color: #cbd5e1;
+  font-size: 11px;
+}
+.mk-tip-row i {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+.mk-tip-row b {
+  margin-left: auto;
+  color: #f1f5f9;
 }
 
 /* ---- markers ---- */

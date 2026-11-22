@@ -1,7 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Eye, Map as MapIcon, PanelLeft, Plus, X } from "lucide-react";
 import { CUSTOM_CAT, baseMarkers, categoryById, groupById, gridRef, type Marker } from "@/lib/mapData";
 import { categoryHint } from "@/lib/categoryInfo";
@@ -15,6 +16,7 @@ import MapSettings, { type Settings } from "./MapSettings";
 import MapLegend from "./MapLegend";
 import MarkerPicker from "./MarkerPicker";
 import ShortcutsDialog from "./ShortcutsDialog";
+import WelcomeDialog, { shouldShowWelcome } from "./WelcomeDialog";
 
 const LeafletMap = dynamic(() => import("./LeafletMap"), {
   ssr: false,
@@ -44,8 +46,31 @@ const isTyping = (t: EventTarget | null) => {
 };
 
 export default function MapApp() {
-  const api = useUserData();
-  const { data } = api;
+  const rawApi = useUserData();
+  const { data } = rawApi;
+  const markerNameRef = useRef<(id: string) => string>(() => "");
+
+  // same API, but check-marks show a toast with "Отменить" so a misclick is never scary
+  const api = useMemo(() => {
+    const a = rawApi.actions;
+    const toggleDone = (id: string, value?: boolean) => {
+      const on = value ?? !rawApi.data.done[id];
+      a.toggleDone(id, on);
+      toast(on ? `✓ Выполнено: ${markerNameRef.current(id)}` : `Отметка снята: ${markerNameRef.current(id)}`, {
+        id: "done-toast",
+        action: { label: "Отменить", onClick: () => a.toggleDone(id, !on) },
+      });
+    };
+    const toggleTrophy = (id: string, value?: boolean) => {
+      const on = value ?? !rawApi.data.trophies?.[id];
+      a.toggleTrophy(id, on);
+      toast(on ? "🏆 Трофей получен" : "Отметка трофея снята", {
+        id: "trophy-toast",
+        action: { label: "Отменить", onClick: () => a.toggleTrophy(id, !on) },
+      });
+    };
+    return { ...rawApi, actions: { ...a, toggleDone, toggleTrophy } };
+  }, [rawApi]);
 
   const [hidden, setHidden] = useState<Set<string>>(() => new Set(readPrefs().hidden ?? []));
   const [hiddenMarkers, setHiddenMarkers] = useState<Set<string>>(() => new Set(readPrefs().hiddenMarkers ?? []));
@@ -64,6 +89,7 @@ export default function MapApp() {
   const [picker, setPicker] = useState<{ ids: string[]; x: number; y: number } | null>(null);
   const [uiHidden, setUiHidden] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [welcomeOpen, setWelcomeOpen] = useState(shouldShowWelcome);
 
   // persist per-device prefs
   useEffect(() => {
@@ -101,6 +127,9 @@ export default function MapApp() {
   );
   const allMarkers = useMemo(() => [...baseMarkers, ...customMarkers], [customMarkers]);
   const markerById = useMemo(() => new Map(allMarkers.map((m) => [m.id, m])), [allMarkers]);
+  useEffect(() => {
+    markerNameRef.current = (id) => markerById.get(id)?.name ?? "";
+  }, [markerById]);
 
   const visibleMarkers = useMemo(() => {
     const list = listFilter ? (data.lists[listFilter]?.items ?? {}) : null;
@@ -211,8 +240,7 @@ export default function MapApp() {
           customMarkers={customMarkers}
           hidden={hidden}
           updateHidden={updateHidden}
-          hideDone={settings.hideDone}
-          toggleHideDone={() => updateSettings({ hideDone: !settings.hideDone })}
+          onShowShortcuts={() => setShortcutsOpen(true)}
           listFilter={listFilter}
           setListFilter={(id) => {
             setListFilter(id);
@@ -261,10 +289,10 @@ export default function MapApp() {
                   className={`${floatBtn} ${settings.legend ? "md:hidden" : ""}`}
                   onClick={() => (window.innerWidth >= 768 ? updateSettings({ legend: true }) : setSidebarOpen(true))}
                 >
-                  <PanelLeft size={15} /> Категории
+                  <PanelLeft size={15} /> Фильтры
                 </button>
                 <button className={`${floatBtn} ${settings.iconLegend ? "border-primary/60 text-primary" : ""}`} onClick={() => updateSettings({ iconLegend: !settings.iconLegend })}>
-                  <MapIcon size={15} /> Легенда
+                  <MapIcon size={15} /> Что значат иконки
                 </button>
                 {trophyFilter && (
                   <button className={`${floatBtn} border-indigo-400/50 bg-indigo-500/90 text-white hover:bg-indigo-500`} onClick={() => setTrophyFilter(null)}>
@@ -308,7 +336,7 @@ export default function MapApp() {
               />
             )}
 
-            {selected && <MarkerPanel key={selected.id} marker={selected} api={api} onClose={() => setSelectedId(null)} />}
+            {selected && <MarkerPanel key={selected.id} marker={selected} api={api} onClose={() => setSelectedId(null)} onHide={hideMarker} />}
           </>
         )}
 
@@ -345,6 +373,9 @@ export default function MapApp() {
 
       {authOpen && <AuthModal api={api} onClose={() => setAuthOpen(false)} />}
       <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+      {welcomeOpen && (
+        <WelcomeDialog onClose={() => setWelcomeOpen(false)} onSignIn={() => setAuthOpen(true)} signedIn={rawApi.auth.status === "signed-in"} />
+      )}
     </div>
   );
 }

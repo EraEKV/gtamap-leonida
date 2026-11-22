@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { ASSET_BASE, CUSTOM_COLOR, POSTER, categoryById, groupColor, iconCss, type Marker } from "@/lib/mapData";
+import { ASSET_BASE, CUSTOM_COLOR, POSTER, categoryById, groupById, groupColor, iconCss, type Marker } from "@/lib/mapData";
 import { enableSmoothWheelZoom } from "@/lib/smoothWheelZoom";
 
 export type FlyTarget = { x: number; y: number; zoom?: number; key: number };
@@ -30,6 +30,7 @@ type Props = {
 const DOT_ZOOM = 3; // without clustering: canvas dots below this zoom
 const CLUSTER_UNTIL = 4; // with clustering: clusters below this zoom
 const CELL = 60; // cluster grid cell, screen px
+const MAX_ICONS = 350; // more DOM icons than this in view -> draw clusters/dots instead
 const baseIconSize = (z: number) => (z < 4 ? 22 : z < 5 ? 28 : 34);
 
 export default function LeafletMap(props: Props) {
@@ -119,11 +120,39 @@ export default function LeafletMap(props: Props) {
       });
     };
 
-    const redraw = () => {
-      const { markers, done, selectedId, clusters, iconScale } = propsRef.current;
+    // LatLng per marker, computed once (markers are immutable objects)
+    const llCache = new WeakMap<Marker, L.LatLng>();
+    const llOf = (m: Marker) => {
+      let ll = llCache.get(m);
+      if (!ll) {
+        ll = toLL(m.x, m.y);
+        llCache.set(m, ll);
+      }
+      return ll;
+    };
+
+    // Which way to draw: clusters / canvas dots / DOM icons. DOM icons are capped — hundreds of them
+    // make every zoom frame expensive, so a dense view falls back to clusters (or dots) automatically.
+    type Mode = "cluster" | "dots" | "icons";
+    const computeMode = (): Mode => {
+      const { markers, clusters } = propsRef.current;
       const z = map.getZoom();
-      const clusterMode = clusters && z < CLUSTER_UNTIL;
-      const dots = !clusters && z < DOT_ZOOM;
+      if (clusters && z < CLUSTER_UNTIL) return "cluster";
+      if (!clusters && z < DOT_ZOOM) return "dots";
+      const b = map.getBounds().pad(0.1);
+      let n = 0;
+      for (const m of markers) if (b.contains(llOf(m)) && ++n > MAX_ICONS) return clusters ? "cluster" : "dots";
+      return "icons";
+    };
+    let lastMode: Mode | null = null;
+
+    const redraw = () => {
+      const { markers, done, selectedId, iconScale } = propsRef.current;
+      const z = map.getZoom();
+      const mode = computeMode();
+      lastMode = mode;
+      const clusterMode = mode === "cluster";
+      const dots = mode === "dots";
       const view = map.getBounds().pad(0.3);
       const size = Math.round(baseIconSize(z) * iconScale);
       const rendered = renderedRef.current;
@@ -166,7 +195,7 @@ export default function LeafletMap(props: Props) {
         // grid clustering in absolute pixel space (stable while panning)
         const cells = new Map<string, Marker[]>();
         for (const m of markers) {
-          const ll = toLL(m.x, m.y);
+          const ll = llOf(m);
           if (!view.contains(ll) && m.id !== selectedId) continue;
           if (m.id === selectedId) {
             iconMarker(m, ll, size);
@@ -181,7 +210,7 @@ export default function LeafletMap(props: Props) {
         const zKey = z.toFixed(2);
         for (const [cell, ms] of cells) {
           if (ms.length === 1) {
-            iconMarker(ms[0], toLL(ms[0].x, ms[0].y), Math.round(22 * iconScale));
+            iconMarker(ms[0], llOf(ms[0]), Math.round(22 * iconScale));
             continue;
           }
           const left = ms.filter((m) => !done[m.id]).length;
@@ -199,30 +228,45 @@ export default function LeafletMap(props: Props) {
             const g = m.custom ? "custom" : (categoryById.get(m.cat)?.group ?? "");
             counts.set(g, (counts.get(g) ?? 0) + 1);
           }
-          const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
-          const color = top === "custom" ? CUSTOM_COLOR : groupColor(top);
+          // ring = pie of what's inside (each group its own colour), centre tinted by the dominant group
+          const parts = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+          const colorOf = (g: string) => (g === "custom" ? CUSTOM_COLOR : groupColor(g));
+          let acc = 0;
+          const stops = parts
+            .map(([g, n]) => {
+              const from = (acc / ms.length) * 360;
+              acc += n;
+              const to = (acc / ms.length) * 360;
+              return `${colorOf(g)} ${from.toFixed(1)}deg ${to.toFixed(1)}deg`;
+            })
+            .join(",");
+          const main = colorOf(parts[0][0]);
           const d = ms.length < 10 ? 30 : ms.length < 50 ? 36 : ms.length < 150 ? 42 : 48;
-          put(`cl:${zKey}:${cell}`, `${ms.length}|${left}|${color}`, () => {
+          put(`cl:${zKey}:${cell}`, `${ms.length}|${left}|${stops}`, () => {
             const lyr = L.marker(toLL(cx, cy), {
               icon: L.divIcon({
                 className: "mk-cluster-wrap",
-                html: `<div class="mk-cluster${left === 0 ? " all-done" : ""}" style="width:${d}px;height:${d}px;--c:${color}">${left === 0 ? "✓" : left}</div>`,
+                html: `<div class="mk-cluster${left === 0 ? " all-done" : ""}" style="width:${d}px;height:${d}px;--c:${main};--ring:conic-gradient(${stops})"><span>${left === 0 ? "✓" : left}</span></div>`,
                 iconSize: [d, d],
                 iconAnchor: [d / 2, d / 2],
               }),
               keyboard: false,
             });
+            const legend = parts
+              .slice(0, 4)
+              .map(([g, n]) => `<div class="mk-tip-row"><i style="background:${colorOf(g)}"></i>${g === "custom" ? "Мои точки" : (groupById.get(g)?.name ?? "")} <b>${n}</b></div>`)
+              .join("");
             lyr.bindTooltip(
-              `<b>${ms.length} точек</b>${left !== ms.length ? ` · осталось ${left}` : ""}<br><span class="mk-tip-sub">клик — приблизить</span>`,
+              `<b>${ms.length} точек</b>${left !== ms.length ? ` · осталось ${left}` : ""}${legend}<div class="mk-tip-sub" style="margin-top:5px">клик — приблизить</div>`,
               { direction: "top", offset: [0, -d / 2], className: "mk-tip", opacity: 1 },
             );
-            lyr.on("click", () => map.flyTo(toLL(cx, cy), Math.min(z + 1.5, CLUSTER_UNTIL + 0.25), { duration: 0.5 }));
+            lyr.on("click", () => map.flyTo(toLL(cx, cy), Math.min(Math.max(z + 1.25, CLUSTER_UNTIL + 0.25), map.getMaxZoom()), { duration: 0.5 }));
             return lyr;
           });
         }
       } else {
         for (const m of markers) {
-          const ll = toLL(m.x, m.y);
+          const ll = llOf(m);
           if (!dots && !view.contains(ll) && m.id !== selectedId) continue;
           if (dots) {
             const isDone = !!done[m.id];
@@ -255,6 +299,15 @@ export default function LeafletMap(props: Props) {
     };
     redrawRef.current = redraw;
     map.on("moveend", redraw);
+    // while zooming (smooth wheel / flyTo), switch away from heavy DOM icons as soon as the view gets
+    // too dense — otherwise Leaflet repositions hundreds of icons on every animation frame
+    let lastCheck = 0;
+    map.on("zoom", () => {
+      const now = performance.now();
+      if (now - lastCheck < 100) return;
+      lastCheck = now;
+      if (lastMode === "icons" && computeMode() !== "icons") redraw();
+    });
     map.on("click", (e: L.LeafletMouseEvent) => {
       const p = propsRef.current;
       if (p.addMode) {
@@ -318,8 +371,25 @@ export default function LeafletMap(props: Props) {
     };
     window.addEventListener("keydown", onKey);
 
+    // the container changes size when the sidebar / UI is hidden or shown: tell Leaflet, keeping the
+    // same point in the middle of the screen (otherwise the view jumps, as if the zoom was reset)
+    // Keep the map visually still: invalidateSize({pan:false}) pins the container's top-left corner,
+    // then shift by however much that corner moved on screen (e.g. sidebar hidden → left edge 340px → 0).
+    let last = elRef.current.getBoundingClientRect();
+    const ro = new ResizeObserver(() => {
+      const r = map.getContainer().getBoundingClientRect();
+      if (r.width === last.width && r.height === last.height && r.left === last.left && r.top === last.top) return;
+      const dx = r.left - last.left;
+      const dy = r.top - last.top;
+      last = r;
+      map.invalidateSize({ pan: false, animate: false });
+      if (dx || dy) map.panBy([dx, dy], { animate: false });
+    });
+    ro.observe(elRef.current);
+
     const rendered = renderedRef.current;
     return () => {
+      ro.disconnect();
       window.removeEventListener("keydown", onKey);
       disposeWheel();
       map.remove();

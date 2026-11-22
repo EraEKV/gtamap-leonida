@@ -1,13 +1,12 @@
 "use client";
 
-const IGN_MAP_URL = "https://www.ign.com/maps/gta-6/leonida";
-
-/** IGN has no per-marker deep links, so copy the name (to paste into their search) and open the map. */
-export async function findOnIgn(name: string) {
-  try {
-    await navigator.clipboard.writeText(name);
-  } catch {}
-  window.open(IGN_MAP_URL, "_blank", "noopener,noreferrer");
+/**
+ * Open the marker on MapGenie (the engine behind IGN's map) — it supports deep links by location id,
+ * so the page opens right on that point with its photos/description. Only for imported markers.
+ */
+export function openOnMapGenie(markerId: string) {
+  const url = `https://mapgenie.io/grand-theft-auto-6/maps/leonida?locationIds=${encodeURIComponent(markerId)}`;
+  window.open(url, "_blank", "noopener,noreferrer");
 }
 
 export async function copyText(text: string) {

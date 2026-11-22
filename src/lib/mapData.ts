@@ -91,9 +91,24 @@ export function gridRef(x: number, y: number): string | null {
 }
 
 /** Group colour, used for low-zoom dots and accents. */
-const GROUP_COLORS: Record<string, string> = {};
-const PALETTE = ["#f472b6", "#60a5fa", "#34d399", "#fbbf24", "#a78bfa", "#f87171", "#22d3ee", "#fb923c", "#a3e635", "#e879f9", "#2dd4bf", "#facc15", "#818cf8"];
-groups.forEach((g, i) => (GROUP_COLORS[g.id] = PALETTE[i % PALETTE.length]));
+// one distinct hue per group (used for progress bars, map dots and cluster rings)
+const GROUP_COLORS: Record<string, string> = {
+  "27134": "#f472b6", // WAiNK — pink
+  "27138": "#fbbf24", // Collectible Cards — amber
+  "27137": "#a3e635", // Exploration — lime
+  "27140": "#ef4444", // Illegal Operations — red
+  "27129": "#22c55e", // Robberies — green
+  "27130": "#38bdf8", // Vehicles — sky
+  "27125": "#a78bfa", // Activities — violet
+  "27127": "#fb923c", // Stunts — orange
+  "27136": "#e879f9", // Racing — fuchsia
+  "27123": "#2dd4bf", // Sports — teal
+  "27128": "#60a5fa", // Points of Interest — blue
+  "27131": "#fda4af", // Style — rose
+  "27132": "#facc15", // Food & Drink — yellow
+};
+const FALLBACK = ["#818cf8", "#34d399", "#f87171"];
+groups.forEach((g, i) => (GROUP_COLORS[g.id] ??= FALLBACK[i % FALLBACK.length]));
 export const groupColor = (groupId: string) => GROUP_COLORS[groupId] ?? "#f472b6";
 export const CUSTOM_COLOR = "#ff4fa3";
 /** Pseudo-category id for user-added points without a category. */

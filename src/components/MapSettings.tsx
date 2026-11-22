@@ -64,9 +64,9 @@ export default function MapSettings(p: Props) {
       {p.cleanMapAvailable && (
         <Row label="Без надписей" hint="постер без названий городов" checked={s.cleanMap} onChange={(v) => onChange({ cleanMap: v })} />
       )}
-      <Row label="Легенда иконок" hint="что означает каждая иконка" kbd="L" checked={s.iconLegend} onChange={(v) => onChange({ iconLegend: v })} />
+      <Row label="Что значат иконки" hint="легенда поверх карты" kbd="L" checked={s.iconLegend} onChange={(v) => onChange({ iconLegend: v })} />
       <div className="hidden md:block">
-        <Row label="Панель категорий" hint="прогресс и списки слева" checked={s.legend} onChange={(v) => onChange({ legend: v })} />
+        <Row label="Панель фильтров" hint="категории, списки, трофеи слева" checked={s.legend} onChange={(v) => onChange({ legend: v })} />
       </div>
       <Row label="Группировать точки" hint="числа вместо каши на отдалении" checked={s.clusters} onChange={(v) => onChange({ clusters: v })} />
       <Row label="Скрыть выполненные" checked={s.hideDone} onChange={(v) => onChange({ hideDone: v })} />

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "@/components/ui/sonner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -26,6 +27,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="ru" className={`${geistSans.variable} dark h-full antialiased`}>
       <body className="h-full overflow-hidden">
         <TooltipProvider delayDuration={300}>{children}</TooltipProvider>
+        <Toaster position="bottom-center" richColors={false} closeButton={false} />
       </body>
     </html>
   );

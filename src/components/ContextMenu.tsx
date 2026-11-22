@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { gridRef, type Marker } from "@/lib/mapData";
-import { copyText, findOnIgn } from "@/lib/ign";
+import { copyText, openOnMapGenie } from "@/lib/ign";
 import type { UserDataApi } from "@/lib/useUserData";
 import type { MapContextEvent } from "./LeafletMap";
 
@@ -126,13 +126,8 @@ export default function ContextMenu({
           </form>
           <div className="my-1 h-px bg-white/10" />
           <Item onClick={act(() => copyText(marker.name))}>⧉ Скопировать название</Item>
-          {!marker.custom && <Item onClick={act(() => findOnIgn(marker.name))}>↗ Найти на IGN (фото, описание)</Item>}
+          {!marker.custom && <Item onClick={act(() => openOnMapGenie(marker.id))}>↗ Открыть на MapGenie (фото, описание)</Item>}
           <Item onClick={act(() => onHideMarker(marker.id))}>🙈 Скрыть эту точку</Item>
-          {marker.custom && (
-            <Item danger onClick={act(() => actions.deleteCustom(marker.id))}>
-              🗑 Удалить точку
-            </Item>
-          )}
         </>
       ) : event.kind === "map" ? (
         <>

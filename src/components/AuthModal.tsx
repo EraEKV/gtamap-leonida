@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { firebaseEnabled } from "@/lib/firebase";
 import type { UserDataApi } from "@/lib/useUserData";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 type Mode = "signin" | "signup" | "reset";
 
@@ -41,16 +42,14 @@ export default function AuthModal({ api, onClose }: { api: UserDataApi; onClose:
     "w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none focus:border-pink-400";
 
   return (
-    <div className="fixed inset-0 z-[3000] grid place-items-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#12152a] p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold">
-            {mode === "signin" ? "Вход" : mode === "signup" ? "Регистрация" : "Сброс пароля"}
-          </h2>
-          <button onClick={onClose} className="text-xl leading-none text-slate-400 hover:text-white" aria-label="Закрыть">
-            ×
-          </button>
-        </div>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="text-lg">{mode === "signin" ? "Вход" : mode === "signup" ? "Регистрация" : "Сброс пароля"}</DialogTitle>
+          <DialogDescription>
+            {mode === "reset" ? "Пришлём письмо со ссылкой для нового пароля." : "Чтобы прогресс был одинаковым на телефоне и ноутбуке."}
+          </DialogDescription>
+        </DialogHeader>
 
         {!firebaseEnabled ? (
           <p className="text-sm leading-relaxed text-slate-300">
@@ -135,7 +134,7 @@ export default function AuthModal({ api, onClose }: { api: UserDataApi; onClose:
             </p>
           </>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
